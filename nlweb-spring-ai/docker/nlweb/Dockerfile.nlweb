@@ -1,0 +1,47 @@
+# Use an appropriate Python base image
+FROM python:3.11-slim
+
+# Set up a working directory
+WORKDIR /opt/nlweb
+
+# Install git and other system dependencies if needed
+RUN apt-get update && apt-get install -y git curl && rm -rf /var/lib/apt/lists/*
+
+# Clone the NLWeb repository
+RUN git clone https://github.com/microsoft/NLWeb .
+
+# Set the working directory to the code folder
+WORKDIR /opt/nlweb/code
+
+# Install Python dependencies
+# Using --no-cache-dir to reduce image size
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the .env.template to .env (actual API key will be injected via docker-compose)
+RUN cp .env.template .env
+
+# Modify config/config_retrieval.yaml to set provider: qdrant_local
+# This also creates the config directory if it doesn't exist from the clone (though it should)
+RUN mkdir -p config && \
+    echo "provider: qdrant_local" > config/config_retrieval.yaml && \
+    echo "batch_size: 10" >> config/config_retrieval.yaml && \
+    echo "verbose: True" >> config/config_retrieval.yaml
+
+# Load sample data (optional, but makes the image self-contained)
+# Note: This step might take some time and increase image size.
+# It also assumes the OPENAI_API_KEY is available during build if db_load needs it,
+# which is not ideal. A better approach is to load data at runtime or via an entrypoint script.
+# For now, we include it as requested but acknowledge this.
+# The db_load script might need environment variables like OPENAI_API_KEY.
+# If the build fails here, this RUN command might need to be removed or adjusted.
+# For now, we'll use a placeholder for OPENAI_API_KEY for the build step,
+# as the real key is for runtime.
+ENV OPENAI_API_KEY="dummy_key_for_build"
+RUN python -m tools.db_load https://feeds.libsyn.com/121695/rss Behind-the-Tech
+
+# Expose port 8000 (NLWeb's default port)
+EXPOSE 8000
+
+# Set the default command to run the application
+# Assuming app-file.py is the main entrypoint for NLWeb
+CMD ["python", "app-file.py"]

@@ -1,0 +1,4 @@
+/app/nlweb-spring-ai/src/test/java/com/example/nlwebspringai/controller/NaturalLanguageControllerTest.java
+/app/nlweb-spring-ai/src/test/java/com/example/nlwebspringai/mcp/service/PlaywrightMcpServiceTest.java
+/app/nlweb-spring-ai/src/test/java/com/example/nlwebspringai/service/OrchestrationServiceTest.java
+/app/nlweb-spring-ai/src/test/java/com/example/nlwebspringai/service/NlWebServiceTest.java

@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  spring-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker # Optional, if you have application-docker.properties
+      - OPENAI_API_KEY=${OPENAI_API_KEY} # Pass through for Spring AI if it uses it directly
+    depends_on:
+      - nlweb
+      - playwright-mcp
+    networks:
+      - nlweb_network
+
+  nlweb:
+    build:
+      context: ./docker/nlweb
+      dockerfile: Dockerfile.nlweb
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # Add any other environment variables NLWeb might need
+      # For example, if Qdrant configuration inside NLWeb relies on environment variables:
+      # - QDRANT_HOST=qdrant_db 
+      # - QDRANT_PORT=6333
+      # However, config_retrieval.yaml is set to qdrant_local, so it should manage its own storage.
+    volumes:
+      - nlweb_qdrant_data:/opt/nlweb/code/qdrant_storage # Persist Qdrant local data
+    networks:
+      - nlweb_network
+
+  playwright-mcp:
+    image: mcr.microsoft.com/playwright/mcp:1.0.0 # Using a specific version instead of latest
+    command: npx playwright-mcp --port 8931 --host 0.0.0.0 --headless true # Explicitly true
+    ports:
+      - "8931:8931"
+    networks:
+      - nlweb_network
+    # If browsers are not included or need specific versions, a custom Dockerfile might be needed for playwright-mcp
+    # The official image should handle this. Consider adding shm_size or security_opt for Chrome if issues arise.
+    # shm_size: '2gb' 
+
+volumes:
+  nlweb_qdrant_data:
+
+networks:
+  nlweb_network:
+    driver: bridge
