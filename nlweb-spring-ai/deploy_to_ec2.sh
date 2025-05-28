@@ -7,12 +7,6 @@ set -e
 GITHUB_REPO_URL="git@github.com:LeonTing1010/MCPNavigator.git" # Replace with your repository URL
 PROJECT_DIR="nlweb-spring-ai"
 
-# --- EC2 Configuration ---
-EC2_USER="ec2-user"
-EC2_HOST="52.83.14.210"
-EC2_KEY_PATH="$HOME/AI/ec2.pem"  # Path to your EC2 key file
-EC2_PORT="22"
-
 # --- Helper Functions ---
 print_message() {
   echo "--------------------------------------------------------------------"
@@ -20,10 +14,49 @@ print_message() {
   echo "--------------------------------------------------------------------"
 }
 
+# --- 1. Read configuration from .env file ---
+print_message "Reading configuration from .env file..."
+if [ -f ".env" ]; then
+  # Read the OPENAI_API_KEY from the .env file
+  OPENAI_API_KEY=$(grep -E "^OPENAI_API_KEY=" .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+  if [ -z "$OPENAI_API_KEY" ]; then
+    print_message "ERROR: OPENAI_API_KEY not found in .env file"
+    echo "Please make sure your .env file contains a line with OPENAI_API_KEY=your_api_key"
+    exit 1
+  else
+    echo "Successfully read OPENAI_API_KEY from .env file"
+  fi
+  
+  # Read EC2 connection details from .env file
+  EC2_HOST=$(grep -E "^EC2_HOST=" .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+  EC2_USER=$(grep -E "^EC2_USER=" .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+  EC2_KEY_PATH=$(grep -E "^EC2_KEY_PATH=" .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+  
+  # Set defaults if not found in .env
+  EC2_HOST=${EC2_HOST:-"52.83.14.210"}
+  EC2_USER=${EC2_USER:-"ec2-user"}
+  EC2_KEY_PATH=${EC2_KEY_PATH:-"$HOME/AI/ec2.pem"}
+  
+  echo "EC2 connection details:"
+  echo "  Host: $EC2_HOST"
+  echo "  User: $EC2_USER"
+  echo "  Key path: $EC2_KEY_PATH"
+else
+  print_message "ERROR: .env file not found"
+  echo "Please create a .env file in the current directory with your configuration"
+  echo "Example:"
+  echo "OPENAI_API_KEY=your_api_key"
+  echo "EC2_HOST=your_ec2_host"
+  echo "EC2_USER=ec2-user"
+  echo "EC2_KEY_PATH=/path/to/your/key.pem"
+  exit 1
+fi
+
+# --- 2. Check SSH key ---
 check_ssh_key() {
   if [ ! -f "$EC2_KEY_PATH" ]; then
     print_message "ERROR: EC2 SSH key not found at $EC2_KEY_PATH"
-    echo "Please update the EC2_KEY_PATH variable in this script with the correct path to your EC2 key file."
+    echo "Please update the EC2_KEY_PATH in your .env file with the correct path to your EC2 key file."
     exit 1
   fi
    
@@ -37,7 +70,7 @@ test_ssh_connection() {
     echo "SSH connection to EC2 successful!"
   else
     print_message "ERROR: Failed to connect to EC2 instance"
-    echo "Please check your EC2_USER, EC2_HOST, and EC2_KEY_PATH variables."
+    echo "Please check your EC2_USER, EC2_HOST, and EC2_KEY_PATH variables in your .env file."
     exit 1
   fi
 }
@@ -55,26 +88,7 @@ check_ssh_key
 # Test SSH connection
 test_ssh_connection
 
-# --- 1. Get OpenAI API Key from local .env file ---
-print_message "Reading OpenAI API Key from local .env file..."
-if [ -f ".env" ]; then
-  # Read the OPENAI_API_KEY from the .env file
-  OPENAI_API_KEY=$(grep -E "^OPENAI_API_KEY=" .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
-  if [ -z "$OPENAI_API_KEY" ]; then
-    print_message "ERROR: OPENAI_API_KEY not found in .env file"
-    echo "Please make sure your .env file contains a line with OPENAI_API_KEY=your_api_key"
-    exit 1
-  else
-    echo "Successfully read OPENAI_API_KEY from .env file"
-  fi
-else
-  print_message "ERROR: .env file not found"
-  echo "Please create a .env file in the current directory with your OPENAI_API_KEY"
-  echo "Example: OPENAI_API_KEY=your_api_key"
-  exit 1
-fi
-
-# --- 2. Install Prerequisites on EC2 ---
+# --- 3. Install Prerequisites on EC2 ---
 print_message "Installing prerequisites on EC2 instance..."
 
 # Install Docker on Amazon Linux 2023
@@ -105,7 +119,7 @@ remote_command "
   fi
 "
 
-# --- 3. Clone or Update Repository on EC2 ---
+# --- 4. Clone or Update Repository on EC2 ---
 print_message "Cloning or updating repository on EC2 instance..."
 remote_command "
   if [ -d \"$PROJECT_DIR\" ]; then
@@ -119,7 +133,7 @@ remote_command "
   fi
 "
 
-# --- 4. Configure .env File on EC2 ---
+# --- 5. Configure .env File on EC2 ---
 print_message "Configuring .env file on EC2 instance..."
 remote_command "
   cd \"$PROJECT_DIR\"
@@ -132,7 +146,7 @@ remote_command "
   fi
 "
 
-# --- 5. Create a simple Spring Boot application if it doesn't exist
+# --- 6. Create a simple Spring Boot application if it doesn't exist
 print_message "Creating a simple Spring Boot application if needed..."
 remote_command "
   cd \"$PROJECT_DIR\"
@@ -231,7 +245,7 @@ EOF
   fi
 "
 
-# --- 6. Copy docker-compose.yml file if it doesn't exist
+# --- 7. Copy docker-compose.yml file if it doesn't exist
 print_message "Ensuring docker-compose.yml exists..."
 remote_command "
   cd \"$PROJECT_DIR\"
@@ -255,7 +269,7 @@ EOF
   fi
 "
 
-# --- 7. Create Dockerfile if it doesn't exist
+# --- 8. Create Dockerfile if it doesn't exist
 print_message "Ensuring Dockerfile exists..."
 remote_command "
   cd \"$PROJECT_DIR\"
@@ -283,7 +297,7 @@ EOF
   echo \"Dockerfile updated successfully.\"
 "
 
-# --- 8. Restart Docker service if needed
+# --- 9. Restart Docker service if needed
 print_message "Ensuring Docker service is running..."
 remote_command "
   # Restart Docker service
@@ -307,7 +321,7 @@ remote_command "
   sudo systemctl status docker
 "
 
-# --- 9. Build and Run Docker Compose on EC2 ---
+# --- 10. Build and Run Docker Compose on EC2 ---
 print_message "Building and running Docker services on EC2 instance..."
 remote_command "
   cd \"$PROJECT_DIR\"
@@ -319,7 +333,7 @@ remote_command "
   sudo docker-compose up --build -d
 "
 
-# --- 10. Check if the service is running
+# --- 11. Check if the service is running
 print_message "Checking if the service is running..."
 remote_command "
   cd \"$PROJECT_DIR\"
